@@ -1,0 +1,12 @@
+{
+    "name": "omar/allow-avif-uploads",
+    "authors": [
+        {
+            "name": "SOM",
+            "email": "support@school-of-marketing.com"
+        }
+    ],
+    "require": {
+        "intervention/image": "^3.11"
+    }
+}

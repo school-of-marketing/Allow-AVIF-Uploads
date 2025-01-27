@@ -1,6 +1,24 @@
 <?php
-class AVIF_Queue_Manager {
+/**
+ * class Queue_Manager
+ * 
+ * Manages the queuing system for AVIF image processing operations.
+ * Handles image conversion, optimization, and queue management in WordPress.
+ * 
+ * @since 1.0.0
+ */
+class Queue_Manager {
+    /** @var string Table name for queue storage */
     private $table_name;
+
+    /** @var int Maximum retries for failed items */
+    const MAX_RETRIES = 3;
+
+    /** @var array Valid process types */
+    const VALID_PROCESS_TYPES = ['optimize', 'convert'];
+
+    /** @var array Valid status types */
+    const VALID_STATUSES = ['pending', 'processing', 'completed', 'failed'];
 
     public function __construct() {
         global $wpdb;
@@ -8,11 +26,13 @@ class AVIF_Queue_Manager {
     }
 
     /**
-     * Create the queue table if it doesn't exist.
+     * Creates the queue table with proper indexes for optimization.
+     *
+     * @since 1.0.0
+     * @return void
      */
     public function create_tables() {
         global $wpdb;
-
         $charset_collate = $wpdb->get_charset_collate();
 
         $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (
@@ -20,9 +40,14 @@ class AVIF_Queue_Manager {
             file_path TEXT NOT NULL,
             process_type VARCHAR(50) NOT NULL,
             status VARCHAR(50) NOT NULL DEFAULT 'pending',
+            retries INT UNSIGNED DEFAULT 0,
             created_at DATETIME NOT NULL,
             processed_at DATETIME DEFAULT NULL,
-            PRIMARY KEY (id)
+            error_message TEXT,
+            PRIMARY KEY (id),
+            INDEX status_idx (status),
+            INDEX process_type_idx (process_type),
+            INDEX created_at_idx (created_at)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -30,148 +55,128 @@ class AVIF_Queue_Manager {
     }
 
     /**
-     * Add a new item to the queue.
+     * Adds a new item to the processing queue with validation.
      *
-     * @param string $file_path The path to the file.
-     * @param string $process_type The type of process (e.g., 'optimize', 'convert').
-     * @return int|false The ID of the inserted item, or false on failure.
+     * @since 1.0.0
+     * @param string $file_path Absolute path to the file
+     * @param string $process_type Type of process ('optimize' or 'convert')
+     * @return int|WP_Error Item ID on success, WP_Error on failure
      */
     public function add_to_queue($file_path, $process_type) {
-        global $wpdb;
+        if (!file_exists($file_path)) {
+            return new WP_Error('invalid_file', 'File does not exist');
+        }
 
-        return $wpdb->insert(
+        if (!in_array($process_type, self::VALID_PROCESS_TYPES)) {
+            return new WP_Error('invalid_process', 'Invalid process type');
+        }
+
+        global $wpdb;
+        
+        // Check for duplicate entries
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$this->table_name} 
+            WHERE file_path = %s AND status = 'pending'",
+            $file_path
+        ));
+
+        if ($existing) {
+            return new WP_Error('duplicate_entry', 'Item already in queue');
+        }
+
+        $result = $wpdb->insert(
             $this->table_name,
             [
                 'file_path' => $file_path,
                 'process_type' => $process_type,
                 'status' => 'pending',
-                'created_at' => current_time('mysql')
+                'created_at' => current_time('mysql'),
+                'retries' => 0
             ],
-            ['%s', '%s', '%s', '%s']
+            ['%s', '%s', '%s', '%s', '%d']
         );
+
+        return $result ? $wpdb->insert_id : new WP_Error('insert_failed', 'Failed to add item to queue');
     }
 
     /**
-     * Get pending items from the queue.
+     * Retrieves pending items with error handling and locking mechanism.
      *
-     * @param int $limit The maximum number of items to retrieve.
-     * @return array An array of pending queue items.
+     * @since 1.0.0
+     * @param int $limit Maximum number of items to retrieve
+     * @return array|WP_Error Array of items or WP_Error on failure
      */
     public function get_pending_items($limit = 10) {
         global $wpdb;
 
-        return $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM {$this->table_name} WHERE status = 'pending' ORDER BY created_at ASC LIMIT %d",
+        // Start transaction
+        $wpdb->query('START TRANSACTION');
+
+        try {
+            $items = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$this->table_name} 
+                WHERE status = 'pending' 
+                AND (retries < %d)
+                ORDER BY created_at ASC LIMIT %d",
+                self::MAX_RETRIES,
                 $limit
-            )
-        );
-    }
+            ));
 
-    /**
-     * Process the queue by handling pending items.
-     */
-    public function process_queue() {
-        $items = $this->get_pending_items();
+            // Mark items as processing
+            if ($items) {
+                $ids = wp_list_pluck($items, 'id');
+                $id_list = implode(',', array_map('intval', $ids));
+                $wpdb->query("UPDATE {$this->table_name} 
+                            SET status = 'processing' 
+                            WHERE id IN ($id_list)");
+            }
 
-        foreach ($items as $item) {
-            $this->process_item($item);
+            $wpdb->query('COMMIT');
+            return $items;
+
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            return new WP_Error('queue_error', $e->getMessage());
         }
     }
 
     /**
-     * Process a single queue item.
+     * Updates item status with error handling.
      *
-     * @param object $item The queue item to process.
+     * @since 1.0.0
+     * @param int $id Item ID
+     * @param string $status New status
+     * @param string $error_message Optional error message
+     * @return bool|WP_Error True on success, WP_Error on failure
      */
-    private function process_item($item) {
-        // Example: Convert or optimize the image
-        $success = $this->handle_process($item->file_path, $item->process_type);
-
-        if ($success) {
-            $this->update_status($item->id, 'completed');
-        } else {
-            $this->update_status($item->id, 'failed');
+    private function update_status($id, $status, $error_message = '') {
+        if (!in_array($status, self::VALID_STATUSES)) {
+            return new WP_Error('invalid_status', 'Invalid status provided');
         }
-    }
 
-    /**
-     * Handle the processing of a file based on the process type.
-     *
-     * @param string $file_path The path to the file.
-     * @param string $process_type The type of process (e.g., 'optimize', 'convert').
-     * @return bool True if the process was successful, false otherwise.
-     */
-    private function handle_process($file_path, $process_type) {
-        // Example: Handle different process types
-        switch ($process_type) {
-            case 'optimize':
-                return $this->optimize_image($file_path);
-            case 'convert':
-                return $this->convert_to_avif($file_path);
-            default:
-                return false;
-        }
-    }
-
-    /**
-     * Optimize an image.
-     *
-     * @param string $file_path The path to the image.
-     * @return bool True if optimization was successful, false otherwise.
-     */
-    private function optimize_image($file_path) {
-        // Add optimization logic here
-        // Example: Use Imagick or an external API
-        return true; // Placeholder
-    }
-
-    /**
-     * Convert an image to AVIF format.
-     *
-     * @param string $file_path The path to the image.
-     * @return bool True if conversion was successful, false otherwise.
-     */
-    private function convert_to_avif($file_path) {
-        // Add conversion logic here
-        // Example: Use Imagick or an external API
-        return true; // Placeholder
-    }
-
-    /**
-     * Update the status of a queue item.
-     *
-     * @param int $id The ID of the queue item.
-     * @param string $status The new status (e.g., 'completed', 'failed').
-     * @return int|false The number of rows updated, or false on failure.
-     */
-    private function update_status($id, $status) {
         global $wpdb;
+        
+        $data = [
+            'status' => $status,
+            'processed_at' => current_time('mysql')
+        ];
 
-        return $wpdb->update(
+        if ($status === 'failed') {
+            $data['retries'] = $wpdb->get_var($wpdb->prepare(
+                "SELECT retries + 1 FROM {$this->table_name} WHERE id = %d",
+                $id
+            ));
+            $data['error_message'] = $error_message;
+        }
+
+        $result = $wpdb->update(
             $this->table_name,
-            [
-                'status' => $status,
-                'processed_at' => current_time('mysql')
-            ],
+            $data,
             ['id' => $id],
-            ['%s', '%s'],
+            ['%s', '%s', '%d', '%s'],
             ['%d']
         );
-    }
 
-    /**
-     * Clear completed items from the queue.
-     *
-     * @return int|false The number of rows deleted, or false on failure.
-     */
-    public function clear_completed_items() {
-        global $wpdb;
-
-        return $wpdb->delete(
-            $this->table_name,
-            ['status' => 'completed'],
-            ['%s']
-        );
+        return $result !== false ? true : new WP_Error('update_failed', 'Failed to update status');
     }
 }

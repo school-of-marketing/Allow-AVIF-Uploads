@@ -1,24 +1,59 @@
 <?php
-class AVIF_Server_Check {
-    public function __construct() {
-        add_action( 'admin_notices', array( $this, 'check_avif_support' ) );
-    }
 
+/**
+ * class Server_Check
+ * 
+ * Handles server-side validation for AVIF image support.
+ * 
+ * @since 1.0.0
+ */
+class Server_Check
+{
+
+
+    /**
+     * Display admin notice if AVIF support is not available.
+     *
+     * @since 1.0.0
+     * @return void
+     */
     public function check_avif_support() {
-        if ( ! $this->is_avif_supported() ) {
-            echo '<div class="notice notice-warning"><p>';
-            echo 'Your server does not support AVIF. Please ensure Imagick is installed with AVIF support.';
-            echo '</p></div>';
+
+
+        try {
+            if (!$this->is_avif_supported()) {
+                $message = sprintf(
+                    '<div class="notice notice-warning"><p>%s</p></div>',
+                    esc_html__('Your server does not support AVIF. Please ensure Imagick is installed with AVIF support.', 'allow-avif-uploads')
+                );
+                echo wp_kses_post($message);
+            }
+        } catch (Exception $e) {
+            error_log('AVIF Support Check Error: ' . $e->getMessage());
         }
     }
 
+    /**
+     * Check if server supports AVIF image format.
+     *
+     * @since 1.0.0
+     * @return boolean True if AVIF is supported, false otherwise.
+     */
     public function is_avif_supported() {
-        if ( ! class_exists( 'Imagick' ) ) {
+
+
+        try {
+            if (!extension_loaded('imagick') || !class_exists('Imagick')) {
+                return false;
+            }
+
+            $imagick = new Imagick();
+            $formats = $imagick->queryFormats();
+            return in_array('AVIF', array_map('strtoupper', $formats), true);
+
+        } catch (Exception $e) {
+            error_log('General Error: ' . $e->getMessage());
             return false;
         }
-
-        $imagick = new Imagick();
-        $formats = $imagick->queryFormats();
-        return in_array( 'AVIF', $formats );
     }
 }
