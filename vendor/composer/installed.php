@@ -1,0 +1,41 @@
+<?php return array(
+    'root' => array(
+        'name' => 'omar/allow-avif-uploads',
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => 'f092e19cefceb08162b88e023e9e58339c8b01f5',
+        'type' => 'library',
+        'install_path' => __DIR__ . '/../../',
+        'aliases' => array(),
+        'dev' => true,
+    ),
+    'versions' => array(
+        'intervention/gif' => array(
+            'pretty_version' => '4.2.1',
+            'version' => '4.2.1.0',
+            'reference' => '6addac2c68b4bc0e37d0d3ccedda57eb84729c49',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../intervention/gif',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'intervention/image' => array(
+            'pretty_version' => '3.11.0',
+            'version' => '3.11.0.0',
+            'reference' => '6b9ce4fc4485d30117e13935b25bc55a8b894a79',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../intervention/image',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'omar/allow-avif-uploads' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => 'f092e19cefceb08162b88e023e9e58339c8b01f5',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+    ),
+);

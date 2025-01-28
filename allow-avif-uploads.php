@@ -1,10 +1,19 @@
 <?php
-/*
-Plugin Name: Allow AVIF Uploads (Advanced)
-Description: Enables advanced AVIF support with AI optimization, CDN integration, and WebAssembly processing.
-Version: 3.0
-Author: SoM
-*/
+
+/**
+ * Plugin Name: Allow AVIF Uploads (Advanced)  
+ * Plugin URI: https://github.com/school-of-marketing/Allow-AVIF-Uploads/
+ * Description: Enables advanced AVIF support for WordPress.
+ * Version: 3.1
+ * Author: SoM
+ * Author URI: https://www.school-of-marketing.com/
+ * Text Domain: allow-avif-uploads
+ * Domain Path: /languages
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Requires at least: 6.7
+ * Requires PHP: 8.1
+ */
 
 /**
  * Advanced AVIF image support plugin for WordPress
@@ -20,23 +29,23 @@ Author: SoM
  * - SEO optimization
  * 
  * @package AVIF
- * @version 3.0
+ * @version 3.1
  * 
+ * @since 3.0 Added EXIF data handling and SEO optimization
  * @since 2.0 Added AI optimization, CDN integration, and WebAssembly processing
  * @since 1.0 Initial release with basic AVIF upload support
  * 
  * Requirements:
- * - WordPress 6.0 or higher
+ * - WordPress 6.7 or higher
  * - PHP 8.1 or higher
- * - GD or Imagick extension
+ * - GD extension
  * 
  * @author SoM
- * @copyright 2023 SoM
+ * @copyright 2025 SoM
  * @license GPL-2.0-or-later
- */
+*/
 
 namespace AVIF;
-
 
 // Exit if accessed directly
 if (!defined('ABSPATH')) {
@@ -48,17 +57,55 @@ define('AVIF_VERSION', '2.0');
 define('AVIF_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('AVIF_PLUGIN_URL', plugin_dir_url(__FILE__));
 
+
+require_once(__DIR__ . '/vendor/autoload.php');
+/**
+ * Main plugin class for handling AVIF image uploads in WordPress.
+ * 
+ * This class implements the Singleton pattern and manages the core functionality
+ * of the AVIF uploads plugin including initialization, hooks, asset loading,
+ * and plugin lifecycle management.
+ * 
+ * @since 1.0.0
+ * @final
+ */
 final class AVIFUploads
 {
     private static $instance = null;
     private $plugin_classes = [];
+    private $is_enabled = false;
 
+    /**
+     * Constructor for the class.
+     * 
+     * Initializes the plugin by checking if AVIF uploads are enabled through WordPress options.
+     * If enabled, it initializes necessary hooks and loads required classes.
+     * 
+     * @since 1.0.0
+     * @access private
+     */
     private function __construct()
     {
-        $this->init_hooks();
-        $this->load_classes();
+        $this->is_enabled = (bool) get_option('avif_enable_uploads', false);
+
+        if ($this->is_enabled) {
+            $this->init_hooks();
+            $this->load_classes();
+        }
     }
 
+    /**
+     * Returns the singleton instance of the class.
+     * 
+     * This method implements the Singleton pattern ensuring only one instance
+     * of the class exists throughout the application's lifecycle.
+     * 
+     * @since 1.0.0
+     * @access public
+     * @static
+     *
+     * @return self The single instance of this class.
+     */
     public static function get_instance(): self
     {
         if (null === self::$instance) {
@@ -67,35 +114,67 @@ final class AVIFUploads
         return self::$instance;
     }
 
+    /**
+     * Initialize WordPress hooks and actions for the plugin.
+     * 
+     * If the plugin is not enabled, no hooks will be registered.
+     * Registers the following hooks:
+     * - 'plugins_loaded' for plugin initialization
+     * - 'admin_enqueue_scripts' for loading admin assets
+     * - Activation hook for plugin setup
+     * - Deactivation hook for cleanup
+     * 
+     * @return void
+     */
     private function init_hooks(): void
     {
+        if (!$this->is_enabled) {
+            return;
+        }
+
         add_action('plugins_loaded', [$this, 'init_plugin']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         register_activation_hook(__FILE__, [$this, 'activate']);
         register_deactivation_hook(__FILE__, [$this, 'deactivate']);
     }
 
+    /**
+     * Loads core plugin classes dynamically based on a predefined map.
+     * 
+     * This method initializes the plugin's core functionality by loading classes
+     * from the includes directory. Each class corresponds to a specific feature
+     * or functionality of the plugin.
+     * 
+     * @since 1.0.0
+     * @access private
+     * 
+     * @uses AVIF_PLUGIN_DIR Constant containing plugin's root directory path
+     * 
+     * The method:
+     * 1. Checks if plugin is enabled before proceeding
+     * 2. Maps class names to their corresponding file names
+     * 3. Loads each class file if it exists
+     * 4. Instantiates each class if successfully loaded
+     * 
+     * @return void
+     */
     private function load_classes(): void
     {
+        if (!$this->is_enabled) {
+            return;
+        }
+
         $core_classes_map = [
-            'AI_Processor' => 'ai-processor',
-            'Animated' => 'animated',
-            'API_Endpoints' => 'api-endpoints',
-            // 'Bulk_Converter' => 'bulk-converter',
-            'CDN_Handler' => 'cdn-handler',
+            'Bulk_Converter' => 'bulk-converter',
             'Display' => 'display',
-            'EXIF_Remover' => 'exif-remover',
-            // 'Image_Editor' => 'image-editor',
             'Lazy_Loading' => 'lazy-loading',
-            // 'Metadata' => 'metadata',
-            // 'Optimizer' => 'optimizer',
+            'Metadata' => 'metadata',
+            'Optimizer' => 'optimizer',
             'Queue_Manager' => 'queue-manager',
             'SEO' => 'seo',
-            // 'Server_Check' => 'server-check',
+            'Server_Check' => 'server-check',
             'Settings' => 'settings',
             'Upload' => 'upload',
-            'Version_Control' => 'version-control',
-            'WASM_Processor' => 'wasm-processor',
             'WebP_Fallback' => 'webp-fallback'
         ];
 
@@ -110,8 +189,25 @@ final class AVIFUploads
         }
     }
 
+    /**
+     * Initializes the plugin functionality.
+     * 
+     * This method performs the following tasks:
+     * - Checks if the plugin is enabled before proceeding
+     * - Loads the plugin's text domain for internationalization
+     * - Initializes all registered plugin classes that have an 'init' method
+     * 
+     * @since 1.0.0
+     * @access public
+     * 
+     * @return void
+     */
     public function init_plugin(): void
     {
+        if (!$this->is_enabled) {
+            return;
+        }
+
         load_plugin_textdomain('allow-avif-uploads', false, dirname(plugin_basename(__FILE__)) . '/languages');
 
         foreach ($this->plugin_classes as $class) {
@@ -119,26 +215,28 @@ final class AVIFUploads
                 $class->init();
             }
         }
-
-        add_filter('wp_image_editors', [$this, 'register_avif_image_editor']);
     }
 
     /**
-     * Registers the AVIF image editor with WordPress
-     * 
-     * @param array $editors Array of image editor class names
-     * @return array Modified array of image editor class names
+     * Enqueues necessary CSS and JavaScript assets for the plugin's admin pages.
+     *
+     * Loads the required stylesheets and scripts only on specific admin pages:
+     * - AVIF settings page
+     * - Bulk convert AVIF page
+     *
+     * Additionally loads WebAssembly assets if WASM support is enabled in plugin settings.
+     *
+     * @param string $hook The current admin page hook suffix
+     * @return void
+     *
+     * @see wp_enqueue_style()
+     * @see wp_enqueue_script()
+     * @see wp_localize_script()
+     * @see get_option()
      */
-    public function register_avif_image_editor(array $editors): array
-    {
-        array_unshift($editors, 'Image_Editor');
-        return $editors;
-    }
-
-
     public function enqueue_assets(string $hook): void
     {
-        if (!in_array($hook, ['settings_page_avif-settings', 'media_page_bulk-convert-avif'])) {
+        if (!$this->is_enabled || !in_array($hook, ['settings_page_avif-settings', 'media_page_bulk-convert-avif'])) {
             return;
         }
 
@@ -172,33 +270,61 @@ final class AVIFUploads
         }
     }
 
+    /**
+     * Activates the plugin and sets up default options.
+     * 
+     * This method performs the following tasks:
+     * - Sets default plugin options including AVIF upload settings, lazy loading,
+     *   compression quality, WebAssembly support, AI features, CDN settings,
+     *   version control, and cleanup settings
+     * - Creates required database tables through Queue_Manager if available
+     * - Flushes WordPress rewrite rules
+     *
+     * @since 1.0.0
+     * @access public
+     * @return void
+     *
+     * @uses add_option() to add plugin settings to WordPress options table
+     * @uses flush_rewrite_rules() to reset WordPress permalink structure
+     */
     public function activate(): void
     {
         $default_options = [
+            'avif_enable_uploads' => '1',
             'avif_lazy_loading' => '1',
             'avif_compression_quality' => '80',
             'avif_enable_wasm' => '1',
             'avif_enable_ai' => '0',
             'avif_cdn_enabled' => '0',
             'avif_version_control' => '1',
-            'avif_delete_settings_on_deactivate' => '0'
+            'avif_delete_settings_on_deactivate' => '1'
         ];
 
         foreach ($default_options as $option => $value) {
             add_option($option, $value);
         }
 
-        if (isset($this->plugin_classes['QueueManager'])) {
-            $this->plugin_classes['QueueManager']->create_tables();
-        }
-
-        if (isset($this->plugin_classes['VersionControl'])) {
-            $this->plugin_classes['VersionControl']->create_tables();
+        if (isset($this->plugin_classes['Queue_Manager'])) {
+            $this->plugin_classes['Queue_Manager']->create_tables();
         }
 
         flush_rewrite_rules();
     }
 
+    /**
+     * Handles the plugin deactivation process.
+     * 
+     * This method performs cleanup operations when the plugin is deactivated:
+     * - If enabled in settings, removes all plugin-related options from wp_options table
+     * - Deletes the following plugin-specific database tables:
+     *   - {prefix}_avif_optimization_queue
+     *   - {prefix}_avif_version_control
+     * - Flushes WordPress rewrite rules
+     *
+     * The cleanup only occurs if the 'avif_delete_settings_on_deactivate' option is set to true.
+     *
+     * @return void
+     */
     public function deactivate(): void
     {
         if (!get_option('avif_delete_settings_on_deactivate', false)) {
@@ -206,6 +332,7 @@ final class AVIFUploads
         }
 
         $cleanup_options = [
+            'avif_enable_uploads',
             'avif_lazy_loading',
             'avif_compression_quality',
             'avif_enable_wasm',

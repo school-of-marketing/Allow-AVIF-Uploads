@@ -6,6 +6,10 @@
  * 
  * @since 1.0.0
  */
+
+use \Intervention\Image\ImageManager;
+use \Intervention\Image\Encoders\AvifEncoder;
+
 class Bulk_Converter
 {
     /**
@@ -26,7 +30,8 @@ class Bulk_Converter
     /**
      * Initialize the bulk converter
      */
-    public function __construct() {
+    public function __construct()
+    {
         add_action('admin_menu', array($this, 'add_bulk_converter_page'));
         add_action('admin_notices', array($this, 'display_notices'));
     }
@@ -109,7 +114,7 @@ class Bulk_Converter
     }
 
     /**
-     * Convert a single image to AVIF format
+     * Convert a single image to AVIF format with compression
      *
      * @param int $attachment_id The attachment ID to convert
      * @return bool True on success, false on failure
@@ -122,21 +127,48 @@ class Bulk_Converter
                 throw new Exception('File not found');
             }
 
-            $editor = wp_get_image_editor($file);
-            if (is_wp_error($editor)) {
-                throw new Exception($editor->get_error_message());
-            }
+            // Initialize Intervention Image Manager
+            $manager = new ImageManager(
+                new Intervention\Image\Drivers\Gd\Driver()
+            );
+            $image = $manager->read($file);
 
+            // Set AVIF compression quality (adjust between 1-100 as needed)
+            $avif_compression_quality = 60;
+
+            // Create new AVIF filename
             $pathinfo = pathinfo($file);
             $avif_file = $pathinfo['dirname'] . '/' . $pathinfo['filename'] . '.avif';
 
-            $result = $editor->save($avif_file, 'image/avif');
-            if (is_wp_error($result)) {
-                throw new Exception($result->get_error_message());
+            // Save as compressed AVIF
+            $image->encode(new AvifEncoder(quality: $avif_compression_quality))
+                ->save($avif_file);
+
+            // Update WordPress attachment metadata
+            update_attached_file($attachment_id, $avif_file);
+            wp_update_post([
+                'ID' => $attachment_id,
+                'post_mime_type' => 'image/avif'
+            ]);
+
+            // Cleanup original file
+            if (file_exists($file)) {
+                unlink($file);
             }
 
-            // Update file permissions to match WordPress defaults
-            chmod($avif_file, 0644);
+            // Update GUID in database
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->posts,
+                ['guid' => wp_get_attachment_url($attachment_id)],
+                ['ID' => $attachment_id],
+                ['%s'],
+                ['%d']
+            );
+
+            // Regenerate attachment metadata
+            $metadata = wp_generate_attachment_metadata($attachment_id, $avif_file);
+            wp_update_attachment_metadata($attachment_id, $metadata);
 
             return true;
 

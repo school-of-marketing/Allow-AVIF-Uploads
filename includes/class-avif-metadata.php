@@ -7,6 +7,7 @@
  * @since 1.0.0
  */
 
+use \Intervention\Image\ImageManager;
 class Metadata
 {
     /**
@@ -58,20 +59,15 @@ class Metadata
                 throw new Exception('File not found: ' . $file);
             }
 
-            // Extract dimensions using Imagick if available
-            if (class_exists('Imagick') && extension_loaded('imagick')) {
-                $imagick = new Imagick($file);
-                $dimensions = $imagick->getImageGeometry();
-                $imagick->clear();
-                $imagick->destroy();
-
-                if (!empty($dimensions['width']) && !empty($dimensions['height'])) {
-                    $metadata['width'] = (int) $dimensions['width'];
-                    $metadata['height'] = (int) $dimensions['height'];
-                }
-            } else {
-                throw new Exception('Imagick not available');
-            }
+            // Extract dimensions using Intervention Image with GD driver
+            $imageManager = new ImageManager(
+                new Intervention\Image\Drivers\Gd\Driver()
+            );
+            // Initialize Intervention Image with GD driver
+            $image = $imageManager->read($file);
+            $metadata['width'] = $image->width();
+            $metadata['height'] = $image->height();
+            $image = null;
 
         } catch (Exception $e) {
             error_log(sprintf(

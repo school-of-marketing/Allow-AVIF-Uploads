@@ -34,9 +34,9 @@ class Settings
         $this->settings_tabs = [
             'general' => __('General', 'avif-uploads'),
             'optimization' => __('Optimization', 'avif-uploads'),
-            'cdn' => __('CDN', 'avif-uploads'),
-            'ai' => __('AI Processing', 'avif-uploads'),
-            'advanced' => __('Advanced', 'avif-uploads')
+            // 'cdn' => __('CDN', 'avif-uploads'),
+            // 'ai' => __('AI Processing', 'avif-uploads'),
+            // 'advanced' => __('Advanced', 'avif-uploads')
         ];
     }
 
@@ -94,94 +94,6 @@ class Settings
         </div>
         <?php
     }
-
-    // public function register_settings()
-    // {
-    //     // General Settings
-    //     $this->register_general_settings();
-
-    //     // Optimization Settings
-    //     $this->register_optimization_settings();
-
-    //     // CDN Settings
-    //     $this->register_cdn_settings();
-
-    //     // AI Settings
-    //     $this->register_ai_settings();
-
-    //     // Advanced Settings
-    //     $this->register_advanced_settings();
-    // }
-
-    // private function register_general_settings()
-    // {
-    //     register_setting('avif_general_settings', 'avif_lazy_loading');
-    //     register_setting('avif_general_settings', 'avif_webp_fallback');
-    //     register_setting('avif_general_settings', 'avif_animated_support');
-
-    //     add_settings_section(
-    //         'avif_general_section',
-    //         'General Settings',
-    //         null,
-    //         'avif-general'
-    //     );
-
-    //     $general_fields = [
-    //         'avif_lazy_loading' => [
-    //             'title' => 'Enable Lazy Loading',
-    //             'callback' => 'render_checkbox_field',
-    //             'default' => '1'
-    //         ],
-    //         'avif_webp_fallback' => [
-    //             'title' => 'Enable WebP Fallback',
-    //             'callback' => 'render_checkbox_field',
-    //             'default' => '1'
-    //         ],
-    //         'avif_animated_support' => [
-    //             'title' => 'Enable Animated AVIF',
-    //             'callback' => 'render_checkbox_field',
-    //             'default' => '1'
-    //         ]
-    //     ];
-
-    //     $this->register_settings_fields($general_fields, 'avif-general', 'avif_general_section');
-    // }
-
-    // private function register_optimization_settings()
-    // {
-    //     register_setting('avif_optimization_settings', 'avif_compression_quality');
-    //     register_setting('avif_optimization_settings', 'avif_enable_queue');
-    //     register_setting('avif_optimization_settings', 'avif_queue_batch_size');
-
-    //     add_settings_section(
-    //         'avif_optimization_section',
-    //         'Optimization Settings',
-    //         null,
-    //         'avif-optimization'
-    //     );
-
-    //     $optimization_fields = [
-    //         'avif_compression_quality' => [
-    //             'title' => 'Compression Quality',
-    //             'callback' => 'render_number_field',
-    //             'default' => '80',
-    //             'args' => ['min' => 1, 'max' => 100]
-    //         ],
-    //         'avif_enable_queue' => [
-    //             'title' => 'Enable Processing Queue',
-    //             'callback' => 'render_checkbox_field',
-    //             'default' => '1'
-    //         ],
-    //         'avif_queue_batch_size' => [
-    //             'title' => 'Queue Batch Size',
-    //             'callback' => 'render_number_field',
-    //             'default' => '10',
-    //             'args' => ['min' => 1, 'max' => 50]
-    //         ]
-    //     ];
-
-    //     $this->register_settings_fields($optimization_fields, 'avif-optimization', 'avif_optimization_section');
-    // }
 
     private function register_cdn_settings()
     {
@@ -293,22 +205,6 @@ class Settings
             );
         }
     }
-
-    // public function render_checkbox_field($args)
-    // {
-    //     $option = get_option($args['id'], $args['default']);
-    //     echo '<input type="checkbox" name="' . esc_attr($args['id']) . '" value="1" ' .
-    //         checked(1, $option, false) . '/>';
-    // }
-
-    // public function render_number_field($args)
-    // {
-    //     $option = get_option($args['id'], $args['default']);
-    //     echo '<input type="number" name="' . esc_attr($args['id']) . '" value="' .
-    //         esc_attr($option) . '" min="' . esc_attr($args['min']) .
-    //         '" max="' . esc_attr($args['max']) . '" />';
-    // }
-
     public function render_text_field($args)
     {
         $option = get_option($args['id'], $args['default']);
@@ -420,7 +316,25 @@ class Settings
             'avif_general_section',
             [
                 'id' => 'avif_enable_uploads',
-                'default' => true
+                'default' => false
+            ]
+        );
+
+        register_setting('avif_general_settings', 'avif_delete_settings_on_deactivate', [
+            'type' => 'boolean',
+            'default' => false,
+            'sanitize_callback' => 'rest_sanitize_boolean'
+        ]);
+
+        add_settings_field(
+            'avif_delete_settings_on_deactivate',
+            __('Delete Settings on Deactivation', 'avif-uploads'),
+            [$this, 'render_checkbox_field'],
+            'avif-general',
+            'avif_general_section',
+            [
+                'id' => 'avif_delete_settings_on_deactivate',
+                'default' => false
             ]
         );
     }
@@ -433,7 +347,7 @@ class Settings
      */
     private function register_optimization_settings()
     {
-        register_setting('avif_optimization_settings', 'avif_quality', [
+        register_setting('avif_optimization_settings', 'avif_compression_quality', [
             'type' => 'integer',
             'default' => 85,
             'sanitize_callback' => 'absint'
@@ -447,13 +361,13 @@ class Settings
         );
 
         add_settings_field(
-            'avif_quality',
+            'avif_compression_quality',
             __('AVIF Quality', 'avif-uploads'),
             [$this, 'render_number_field'],
             'avif-optimization',
             'avif_optimization_section',
             [
-                'id' => 'avif_quality',
+                'id' => 'avif_compression_quality',
                 'default' => 85,
                 'min' => 0,
                 'max' => 100

@@ -4,7 +4,17 @@ class Upload {
         'image/avif' => 'avif',
         'image/avif-sequence' => 'avif',
         'image/svg+xml' => 'svg',
-        'image/svg' => 'svg'
+        'image/svg' => 'svg',
+        'image/jpeg' => 'jpg',
+        'image/jpg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        'image/bmp' => 'bmp',
+        'image/tiff' => 'tif',
+        'image/x-icon' => 'ico',
+        'image/heic' => 'heic',
+        'image/heif' => 'heif'
     ];
 
     public function __construct() {
