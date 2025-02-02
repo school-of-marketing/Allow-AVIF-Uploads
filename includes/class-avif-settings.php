@@ -25,7 +25,8 @@ class Settings
      *
      * @since 1.0.0
      */
-    public function __construct() {
+    public function __construct()
+    {
         // Initialize hooks with priority to ensure proper loading
         add_action('admin_menu', [$this, 'add_settings_page'], 10);
         add_action('admin_init', [$this, 'register_settings'], 10);
@@ -46,7 +47,8 @@ class Settings
      * @since 1.0.0
      * @return void
      */
-    public function add_settings_page() {
+    public function add_settings_page()
+    {
         add_options_page(
             __('AVIF Settings', 'avif-uploads'),
             __('AVIF Settings', 'avif-uploads'),
@@ -62,7 +64,8 @@ class Settings
      * @since 1.0.0
      * @return void
      */
-    public function render_settings_page() {
+    public function render_settings_page()
+    {
         if (!current_user_can('manage_options')) {
             wp_die(__('You do not have sufficient permissions to access this page.'));
         }
@@ -87,9 +90,9 @@ class Settings
             <form method="post" action="options.php">
                 <?php
                 settings_fields("avif_{$active_tab}_settings");
-                do_settings_sections("avif-{$active_tab}");
-                submit_button();
-                ?>
+        do_settings_sections("avif-{$active_tab}");
+        submit_button();
+        ?>
             </form>
         </div>
         <?php
@@ -295,11 +298,6 @@ class Settings
      */
     private function register_general_settings()
     {
-        register_setting('avif_general_settings', 'avif_enable_uploads', [
-            'type' => 'boolean',
-            'default' => true,
-            'sanitize_callback' => 'rest_sanitize_boolean'
-        ]);
 
         add_settings_section(
             'avif_general_section',
@@ -308,17 +306,6 @@ class Settings
             'avif-general'
         );
 
-        add_settings_field(
-            'avif_enable_uploads',
-            __('Enable AVIF Uploads', 'avif-uploads'),
-            [$this, 'render_checkbox_field'],
-            'avif-general',
-            'avif_general_section',
-            [
-                'id' => 'avif_enable_uploads',
-                'default' => false
-            ]
-        );
 
         register_setting('avif_general_settings', 'avif_delete_settings_on_deactivate', [
             'type' => 'boolean',
